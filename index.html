@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shift Swap Board</title>
+  <style>
+    :root {
+      --primary: #5b21b6;
+      --primary-light: #ede9fe;
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+    }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); padding-bottom: 40px; }
+    header {
+      background: var(--primary); color: #fff; padding: 16px 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    header h1 { margin: 0; font-size: 1.15rem; }
+    .btn-add {
+      background: #fff; color: var(--primary); border: none; padding: 9px 14px;
+      border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.9rem;
+    }
+    .container { max-width: 900px; margin: 16px auto; padding: 0 14px; }
+    .filters {
+      background: var(--card); padding: 12px; border-radius: 12px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px; margin-bottom: 16px; border: 1px solid var(--border);
+    }
+    .filters input, .filters select {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 0.88rem;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+    .card {
+      background: var(--card); border-radius: 12px; padding: 15px;
+      border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .user-name { font-weight: 700; font-size: 1rem; }
+    .badge-ot {
+      font-size: 0.72rem; padding: 2px 8px; border-radius: 99px; font-weight: 700;
+      background: #fef3c7; color: #92400e; border: 1px solid #fde68a;
+    }
+    .day-box {
+      background: #f9fafb; border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 10px; margin-bottom: 8px; font-size: 0.85rem;
+    }
+    .day-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;
+    }
+    .day-date { font-weight: 700; color: var(--primary); }
+    .shift-row { display: flex; justify-content: space-between; margin-top: 2px; }
+    .lbl { color: var(--muted); font-size: 0.8rem; }
+    .val { font-weight: 600; }
+    .card-actions { display: flex; gap: 6px; margin-top: 12px; }
+    .btn-wa {
+      flex: 2; background: #16a34a; color: #ffffff; border: none;
+      padding: 10px 10px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer;
+    }
+    .btn-wa:hover { background: #15803d; }
+    .btn-edit {
+      flex: 1; background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd;
+      padding: 10px 8px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer;
+    }
+    .btn-edit:hover { background: #ddd6fe; }
+    .btn-done {
+      flex: 1; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db;
+      padding: 10px 8px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer;
+    }
+    .btn-done:hover { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 50; justify-content: center; align-items: flex-start;
+      padding: 20px 12px; overflow-y: auto;
+    }
+    .modal {
+      background: #fff; width: 100%; max-width: 520px; border-radius: 14px;
+      padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal h2 { margin: 0 0 14px; font-size: 1.15rem; color: var(--primary); }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
+    .field input, .field select {
+      width: 100%; padding: 9px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.9rem;
+    }
+    .day-builder {
+      border: 1px solid #ddd6fe; background: #faf5ff; padding: 12px;
+      border-radius: 10px; margin-bottom: 10px; position: relative;
+    }
+    .remove-day {
+      position: absolute; top: 8px; right: 8px; background: #ef4444; color: #fff;
+      border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-weight: bold;
+    }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+    .btn-secondary {
+      background: var(--primary-light); color: var(--primary); border: 1px dashed var(--primary);
+      width: 100%; padding: 8px; border-radius: 8px; font-weight: 600; cursor: pointer; margin-bottom: 12px;
+    }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+    .btn-submit { background: var(--primary); color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+    .btn-cancel { background: #e5e7eb; color: #374151; border: none; padding: 10px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    .match-alert {
+      display: none; background: #ecfdf5; border: 2px solid #10b981; border-radius: 12px;
+      padding: 14px; margin-bottom: 16px;
+    }
+    .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Shift Swap Board</h1>
+  <button type="button" class="btn-add" onclick="openAddModal()">+ Add Swap</button>
+</header>
+
+<div class="container">
+  <div id="matchAlert" class="match-alert"></div>
+
+  <div class="filters">
+    <input type="text" id="searchInput" placeholder="Search name, time, date..." oninput="renderCards()">
+    <input type="date" id="dateFilter" onchange="renderCards()">
+    <select id="typeFilter" onchange="renderCards()">
+      <option value="all">All Types (Hours &amp; Off)</option>
+      <option value="off">Includes Off Day</option>
+      <option value="hours">Shift Hours Only</option>
+    </select>
+    <select id="otFilter" onchange="renderCards()">
+      <option value="all">Overtime: All</option>
+      <option value="Yes">Includes Overtime (+ OT)</option>
+      <option value="No">Without Overtime</option>
+    </select>
+  </div>
+
+  <div id="cardsContainer" class="grid">
+    <div class="empty">Loading active swap requests...</div>
+  </div>
+</div>
+
+<!-- Add Swap Modal -->
+<div id="addModal" class="modal-backdrop">
+  <div class="modal">
+    <h2>New Swap Request</h2>
+    <div class="row-2" style="margin-bottom:12px;">
+      <div class="field" style="margin:0;">
+        <label>Name *</label>
+        <input type="text" id="inpName" placeholder="e.g. Ahmed Basiony">
+      </div>
+      <div class="field" style="margin:0;">
+        <label>Telefon number *</label>
+        <input type="tel" id="inpPhone" placeholder="2010XXXXXXXX">
+      </div>
+    </div>
+
+    <div id="daysWrapper"></div>
+    <button type="button" class="btn-secondary" onclick="addDayBlock('daysWrapper')">+ Add Another Day</button>
+
+    <div class="field">
+      <label>4-Digit PIN (للتعديل أو الإغلاق بعد السواب) *</label>
+      <input type="text" id="inpPin" maxlength="4" pattern="\d{4}" placeholder="e.g. 1234">
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+      <button type="button" class="btn-submit" id="submitBtn" onclick="submitSwap()">Publish Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Swap Modal -->
+<div id="editModal" class="modal-backdrop">
+  <div class="modal">
+    <h2>Edit Swap Request</h2>
+    <p style="font-size:0.84rem;color:#4b5563;margin-top:0;">احذف اليوم اللي خلصته بعلامة (x) أو عدّل الساعات، ولو مسحت كل الأيام الطلب هيتقفل أوتوماتيك:</p>
+    <input type="hidden" id="editRequestId">
+    <div id="editDaysWrapper"></div>
+    <button type="button" class="btn-secondary" onclick="addDayBlock('editDaysWrapper', null, true)">+ Add Another Day</button>
+
+    <div class="field">
+      <label>Enter Your 4-Digit PIN to Save Changes *</label>
+      <input type="password" id="editPinInput" maxlength="4" placeholder="****" style="text-align:center;font-size:1.1rem;letter-spacing:4px;">
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+      <button type="button" class="btn-submit" id="saveEditBtn" onclick="submitEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Done Modal -->
+<div id="doneModal" class="modal-backdrop">
+  <div class="modal" style="max-width:360px;">
+    <h2>Mark Swap as Done</h2>
+    <p style="font-size:0.88rem;color:#4b5563;">Enter the 4-digit PIN you created when posting this request:</p>
+    <input type="hidden" id="doneRequestId">
+    <div class="field">
+      <input type="password" id="donePinInput" maxlength="4" placeholder="****" style="text-align:center;font-size:1.2rem;letter-spacing:4px;">
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" onclick="closeDoneModal()">Cancel</button>
+      <button type="button" class="btn-submit" id="confirmDoneBtn" onclick="confirmDone()">Confirm Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_URL = 'https://script.google.com/macros/s/AKfycbx9hkMAF659L9IpI81B6YtgBAqx4mY31Q4LQoAnG_fwtvH617V2IMU79yDqxkUIpds/exec';
+
+  let allRequests = [];
+  let dayCounter = 0;
+
+  function getTodayLocal() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  const TIMES = [];
+  for (let h = 0; h < 24; h++) {
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    TIMES.push(`${String(h12).padStart(2, '0')}:00 ${ampm}`);
+  }
+
+  function timeOptions(defaultVal) {
+    return TIMES.map(t => `<option value="${t}" ${t === defaultVal ? 'selected' : ''}>${t}</option>`).join('');
+  }
+
+  function esc(str) {
+    return String(str || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  function openWhatsApp(phone) {
+    const clean = String(phone || '').replace(/[^0-9]/g, '');
+    if (!clean) { alert('No phone number available.'); return; }
+    window.open('https://wa.me/' + clean, '_blank', 'noopener');
+  }
+
+  async function postApi(bodyObj) {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(bodyObj)
+    });
+    return await res.json();
+  }
+
+  async function loadData(attempt = 1) {
+    try {
+      const res = await fetch(API_URL);
+      const json = await res.json();
+      if (json.success) {
+        allRequests = json.data || [];
+        renderCards();
+      } else {
+        throw new Error(json.message);
+      }
+    } catch (err) {
+      if (attempt < 4) {
+        setTimeout(() => loadData(attempt + 1), 1500);
+      } else {
+        document.getElementById('cardsContainer').innerHTML =
+          '<div class="empty">تعذر تحميل الطلبات حالياً، اعمل Refresh للصفحة.</div>';
+      }
+    }
+  }
+
+  function renderCards() {
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    const dFilter = document.getElementById('dateFilter').value;
+    const tFilter = document.getElementById('typeFilter').value;
+    const otFilter = document.getElementById('otFilter').value;
+
+    const filtered = allRequests.filter(req => {
+      const days = req.days || [];
+      const hasOT = days.some(d => d.ot === 'Yes');
+      if (otFilter === 'Yes' && !hasOT) return false;
+      if (otFilter === 'No' && hasOT) return false;
+
+      const daysText = days.map(d => `${d.date} ${d.current} ${d.wanted}`).join(' ').toLowerCase();
+      if (q && !req.name.toLowerCase().includes(q) && !daysText.includes(q)) return false;
+      if (dFilter && !days.some(d => d.date === dFilter)) return false;
+      if (tFilter === 'off' && !daysText.includes('off')) return false;
+      if (tFilter === 'hours' && daysText.includes('off')) return false;
+      return true;
+    });
+
+    const container = document.getElementById('cardsContainer');
+    if (!filtered.length) {
+      container.innerHTML = '<div class="empty">No matching swap requests right now.</div>';
+      return;
+    }
+
+    container.innerHTML = filtered.map(req => {
+      const daysHtml = (req.days || []).map(d => {
+        const otBadge = d.ot === 'Yes' ? '<span class="badge-ot">+ OT</span>' : '';
+        return `
+          <div class="day-box">
+            <div class="day-header">
+              <span class="day-date">${esc(d.date)}</span>
+              ${otBadge}
+            </div>
+            <div class="shift-row"><span class="lbl">Current:</span><span class="val">${esc(d.current)}</span></div>
+            <div class="shift-row"><span class="lbl">Wanted:</span><span class="val" style="color:#059669;">${esc(d.wanted)}</span></div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="card">
+          <div>
+            <div class="card-top">
+              <span class="user-name">${esc(req.name)}</span>
+            </div>
+            ${daysHtml}
+          </div>
+          <div class="card-actions">
+            <button type="button" class="btn-wa" onclick="openWhatsApp('${esc(req.phone)}')">WhatsApp</button>
+            <button type="button" class="btn-edit" onclick="openEditModal('${esc(req.id)}')">Edit</button>
+            <button type="button" class="btn-done" onclick="openDoneModal('${esc(req.id)}')">Done</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function addDayBlock(wrapperId, prefill = null, allowRemoveFirst = false) {
+    dayCounter++;
+    const id = dayCounter;
+    const minDate = getTodayLocal();
+    const wrapper = document.getElementById(wrapperId);
+    const isFirst = wrapper.children.length === 0;
+
+    const dateVal = prefill ? prefill.date : '';
+    const curIsOff = prefill && prefill.current === 'Off';
+    const curParts = (!curIsOff && prefill && prefill.current.includes(' - ')) ? prefill.current.split(' - ') : ['11:00 AM', '07:00 PM'];
+    const otVal = prefill ? (prefill.ot || 'No') : 'No';
+
+    const wantIsOff = prefill && prefill.wanted === 'Off';
+    const wantParts = (!wantIsOff && prefill && prefill.wanted.includes(' - ')) ? prefill.wanted.split(' - ') : ['09:00 AM', '05:00 PM'];
+
+    const showRemove = !isFirst || allowRemoveFirst;
+
+    const div = document.createElement('div');
+    div.className = 'day-builder';
+    div.id = `day-block-${id}`;
+    div.innerHTML = `
+      ${showRemove ? `<button type="button" class="remove-day" onclick="document.getElementById('day-block-${id}').remove()">x</button>` : ''}
+      <div class="field" style="margin-bottom:8px;">
+        <label>Date *</label>
+        <input type="date" class="d-date" min="${minDate}" value="${esc(dateVal)}" required>
+      </div>
+
+      <div style="font-size:0.82rem;font-weight:700;color:#4b5563;">Current Shift</div>
+      <div class="row-2" style="margin-top:4px;">
+        <select class="d-cur-type" onchange="toggleShiftOpts(this, 'cur-times-${id}', 'ot-wrap-${id}')" style="padding:7px;border-radius:6px;border:1px solid #d1d5db;">
+          <option value="hours" ${!curIsOff ? 'selected' : ''}>Shift Hours</option>
+          <option value="Off" ${curIsOff ? 'selected' : ''}>Off</option>
+        </select>
+        <div id="ot-wrap-${id}" style="display:${curIsOff ? 'none' : 'block'};">
+          <select class="d-ot" style="width:100%;padding:7px;border-radius:6px;border:1px solid #d1d5db;">
+            <option value="No" ${otVal === 'No' ? 'selected' : ''}>Overtime: No</option>
+            <option value="Yes" ${otVal === 'Yes' ? 'selected' : ''}>Overtime: Yes</option>
+          </select>
+        </div>
+      </div>
+      <div id="cur-times-${id}" class="row-2" style="display:${curIsOff ? 'none' : 'grid'};">
+        <select class="d-cur-from">${timeOptions(curParts[0])}</select>
+        <select class="d-cur-to">${timeOptions(curParts[1])}</select>
+      </div>
+
+      <div style="font-size:0.82rem;font-weight:700;color:#059669;margin-top:10px;">Wanted Shift</div>
+      <select class="d-want-type" onchange="toggleWantedTimes(this, 'want-times-${id}')" style="width:100%;padding:7px;border-radius:6px;border:1px solid #d1d5db;margin-top:4px;">
+        <option value="hours" ${!wantIsOff ? 'selected' : ''}>Shift Hours</option>
+        <option value="Off" ${wantIsOff ? 'selected' : ''}>Off</option>
+      </select>
+      <div id="want-times-${id}" class="row-2" style="display:${wantIsOff ? 'none' : 'grid'};">
+        <select class="d-want-from">${timeOptions(wantParts[0])}</select>
+        <select class="d-want-to">${timeOptions(wantParts[1])}</select>
+      </div>
+    `;
+    wrapper.appendChild(div);
+  }
+
+  function toggleShiftOpts(sel, timesId, otWrapId) {
+    const isOff = sel.value === 'Off';
+    document.getElementById(timesId).style.display = isOff ? 'none' : 'grid';
+    document.getElementById(otWrapId).style.display = isOff ? 'none' : 'block';
+  }
+
+  function toggleWantedTimes(sel, targetId) {
+    document.getElementById(targetId).style.display = sel.value === 'Off' ? 'none' : 'grid';
+  }
+
+  function extractDaysFromWrapper(wrapperId) {
+    const minDate = getTodayLocal();
+    const blocks = document.querySelectorAll(`#${wrapperId} .day-builder`);
+    const days = [];
+    for (let b of blocks) {
+      const date = b.querySelector('.d-date').value;
+      if (!date) { alert('Please select a date for each day.'); return null; }
+      if (date < minDate) { alert('لا يمكن اختيار تاريخ قديم. اختر تاريخ اليوم أو ما بعده.'); return null; }
+      const curType = b.querySelector('.d-cur-type').value;
+      const current = curType === 'Off' ? 'Off' : `${b.querySelector('.d-cur-from').value} - ${b.querySelector('.d-cur-to').value}`;
+      const ot = curType === 'Off' ? 'No' : b.querySelector('.d-ot').value;
+      const wantType = b.querySelector('.d-want-type').value;
+      const wanted = wantType === 'Off' ? 'Off' : `${b.querySelector('.d-want-from').value} - ${b.querySelector('.d-want-to').value}`;
+      days.push({ date, current, wanted, ot });
+    }
+    return days;
+  }
+
+  function openAddModal() {
+    document.getElementById('daysWrapper').innerHTML = '';
+    addDayBlock('daysWrapper');
+    document.getElementById('addModal').style.display = 'flex';
+  }
+  function closeAddModal() { document.getElementById('addModal').style.display = 'none'; }
+
+  async function submitSwap() {
+    const name = document.getElementById('inpName').value.trim();
+    const phone = document.getElementById('inpPhone').value.trim();
+    const pin = document.getElementById('inpPin').value.trim();
+
+    if (!name || !phone || !/^\d{4}$/.test(pin)) {
+      alert('Please enter Name, Telefon number, and a 4-digit PIN.');
+      return;
+    }
+
+    const days = extractDaysFromWrapper('daysWrapper');
+    if (!days) return;
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    try {
+      const res = await postApi({ action: 'add', payload: { name, phone, pin, days } });
+      if (!res.success) { alert(res.message); return; }
+      closeAddModal();
+      showMatches(res.matches);
+      loadData();
+    } catch (e) {
+      alert('حدث خطأ في الاتصال، حاول مرة أخرى.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Publish Request';
+    }
+  }
+
+  function openEditModal(id) {
+    const req = allRequests.find(r => r.id === id);
+    if (!req) return;
+    document.getElementById('editRequestId').value = id;
+    document.getElementById('editPinInput').value = '';
+    const wrapper = document.getElementById('editDaysWrapper');
+    wrapper.innerHTML = '';
+    (req.days || []).forEach(d => addDayBlock('editDaysWrapper', d, true));
+    document.getElementById('editModal').style.display = 'flex';
+  }
+  function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
+
+  async function submitEdit() {
+    const id = document.getElementById('editRequestId').value;
+    const pin = document.getElementById('editPinInput').value.trim();
+    if (!/^\d{4}$/.test(pin)) {
+      alert('Please enter your 4-digit PIN.');
+      return;
+    }
+
+    const days = extractDaysFromWrapper('editDaysWrapper');
+    if (days === null) return;
+
+    const btn = document.getElementById('saveEditBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    try {
+      const res = await postApi({ action: 'edit', id, pin, days });
+      if (!res.success) { alert(res.message); return; }
+      closeEditModal();
+      loadData();
+    } catch (e) {
+      alert('حدث خطأ في الاتصال، حاول مرة أخرى.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Changes';
+    }
+  }
+
+  function showMatches(matches) {
+    const box = document.getElementById('matchAlert');
+    if (!matches || !matches.length) { box.style.display = 'none'; return; }
+    box.innerHTML = `
+      <div style="font-weight:700;color:#065f46;margin-bottom:6px;">Match Found!</div>
+      ${matches.map(m => `
+        <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;padding:8px;border-radius:8px;margin-top:6px;">
+          <div><strong>${esc(m.name)}</strong> <small>(${esc(m.matchedInfo)})</small></div>
+          <button type="button" class="btn-wa" style="flex:none;padding:6px 12px;" onclick="openWhatsApp('${esc(m.phone)}')">Chat on WhatsApp</button>
+        </div>
+      `).join('')}
+    `;
+    box.style.display = 'block';
+  }
+
+  function openDoneModal(id) {
+    document.getElementById('doneRequestId').value = id;
+    document.getElementById('donePinInput').value = '';
+    document.getElementById('doneModal').style.display = 'flex';
+  }
+  function closeDoneModal() { document.getElementById('doneModal').style.display = 'none'; }
+
+  async function confirmDone() {
+    const id = document.getElementById('doneRequestId').value;
+    const pin = document.getElementById('donePinInput').value;
+    const btn = document.getElementById('confirmDoneBtn');
+    btn.disabled = true; btn.textContent = 'Checking...';
+
+    try {
+      const res = await postApi({ action: 'done', id, pin });
+      if (!res.success) { alert(res.message); return; }
+      closeDoneModal();
+      loadData();
+    } catch (e) {
+      alert('حدث خطأ في الاتصال، حاول مرة أخرى.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Confirm Done';
+    }
+  }
+
+  document.getElementById('dateFilter').min = getTodayLocal();
+  loadData();
+</script>
+</body>
+</html>
