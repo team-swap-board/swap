@@ -64,9 +64,18 @@
       border: 2px solid #10b981;
       box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
     }
+    .card.has-partial {
+      border: 2px solid #f59e0b;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.12);
+    }
     .card-match-banner {
       background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46;
-      border-radius: 8px; padding: 7px 10px; margin-bottom: 10px;
+      border-radius: 8px; padding: 7px 10px; margin-bottom: 8px;
+      font-size: 0.8rem; line-height: 1.4;
+    }
+    .card-partial-banner {
+      background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+      border-radius: 8px; padding: 7px 10px; margin-bottom: 8px;
       font-size: 0.8rem; line-height: 1.4;
     }
     .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -196,7 +205,8 @@
     <input type="date" id="dateFilter" onchange="renderCards()">
     <select id="typeFilter" onchange="renderCards()">
       <option value="all">All Types (Hours &amp; Off)</option>
-      <option value="matched">✨ Matched Only</option>
+      <option value="matched">✨ All Matches (Full &amp; Partial)</option>
+      <option value="exact">✅ Full Match Only</option>
       <option value="off">Includes Off Day</option>
       <option value="hours">Shift Hours Only</option>
     </select>
@@ -368,6 +378,12 @@
     window.open('https://wa.me/' + clean, '_blank', 'noopener');
   }
 
+  function isDuplicateShiftDay(day) {
+    const cur = String(day.current || '').trim().toLowerCase();
+    const want = String(day.wanted || '').trim().toLowerCase();
+    return cur && want && cur === want;
+  }
+
   function shiftsMatch(s1, s2) {
     const a = String(s1 || '').trim().toLowerCase();
     const b = String(s2 || '').trim().toLowerCase();
@@ -379,18 +395,29 @@
   }
 
   function getCardMatches(req) {
-    const matches = [];
+    const full = [];
+    const partial = [];
+    const myValidDays = (req.days || []).filter(d => !isDuplicateShiftDay(d));
+    const myDatesSet = new Set(myValidDays.map(d => d.date));
+
+    if (myValidDays.length === 0) {
+      return { full, partial };
+    }
+
     for (const other of allRequests) {
       if (other.id === req.id) continue;
-      if (req.lob && other.lob && req.lob !== other.lob) continue;
+      if ((req.lob || 'Phone') !== (other.lob || 'Phone')) continue;
+
+      const otherValidDays = (other.days || []).filter(d => !isDuplicateShiftDay(d));
+      if (otherValidDays.length === 0) continue;
 
       const matchedDates = [];
-      for (const myDay of (req.days || [])) {
-        for (const otherDay of (other.days || [])) {
+      for (const myDay of myValidDays) {
+        for (const otherDay of otherValidDays) {
           if (
             myDay.date === otherDay.date &&
-            shiftsMatch(myDay.current, otherDay.wanted) &&
-            shiftsMatch(myDay.wanted, otherDay.current)
+            shiftsMatch(myDay.wanted, otherDay.current) &&
+            shiftsMatch(myDay.current, otherDay.wanted)
           ) {
             if (!matchedDates.includes(myDay.date)) {
               matchedDates.push(myDay.date);
@@ -398,15 +425,27 @@
           }
         }
       }
-      if (matchedDates.length > 0) {
-        matches.push({
+
+      if (matchedDates.length === 0) continue;
+
+      const allMyDatesMatched = myDatesSet.size > 0 && Array.from(myDatesSet).every(dt => matchedDates.includes(dt));
+
+      if (allMyDatesMatched) {
+        full.push({
+          name: other.name,
+          phone: other.phone,
+          dates: matchedDates.join(', ')
+        });
+      } else if (myDatesSet.size > 1) {
+        partial.push({
           name: other.name,
           phone: other.phone,
           dates: matchedDates.join(', ')
         });
       }
     }
-    return matches;
+
+    return { full, partial };
   }
 
   function setLobFilter(lob) {
@@ -420,7 +459,7 @@
   function updateLobCounts() {
     const total = allRequests.length;
     const chatCount = allRequests.filter(r => r.lob === 'Chat').length;
-    const phoneCount = allRequests.filter(r => r.lob === 'Phone').length;
+    const phoneCount = allRequests.filter(r => (r.lob || 'Phone') === 'Phone').length;
     document.getElementById('tab-all').textContent = `All (${total})`;
     document.getElementById('tab-Chat').textContent = `💬 Chat (${chatCount})`;
     document.getElementById('tab-Phone').textContent = `📞 Phone (${phoneCount})`;
@@ -453,6 +492,7 @@
       const data = await res.json();
       allRequests = (Array.isArray(data) ? data : []).map(req => ({
         ...req,
+        lob: req.lob || 'Phone',
         days: (req.days || []).map(d => ({
           ...d,
           current: normalizeShiftStr(d.current),
@@ -479,12 +519,14 @@
 
     const enriched = allRequests.map(req => ({
       req,
-      matches: getCardMatches(req)
+      matchInfo: getCardMatches(req)
     }));
 
-    const filtered = enriched.filter(({ req, matches }) => {
-      if (currentLobFilter !== 'all' && req.lob !== currentLobFilter) return false;
-      if (tFilter === 'matched' && matches.length === 0) return false;
+    const filtered = enriched.filter(({ req, matchInfo }) => {
+      const reqLob = req.lob || 'Phone';
+      if (currentLobFilter !== 'all' && reqLob !== currentLobFilter) return false;
+      if (tFilter === 'matched' && matchInfo.full.length === 0 && matchInfo.partial.length === 0) return false;
+      if (tFilter === 'exact' && matchInfo.full.length === 0) return false;
 
       const days = req.days || [];
       const hasOT = days.some(d => d.ot === 'Yes');
@@ -505,17 +547,23 @@
       return;
     }
 
-    container.innerHTML = filtered.map(({ req, matches }) => {
-      let lobBadge = '';
-      if (req.lob === 'Chat') {
-        lobBadge = '<span class="badge-lob badge-chat">💬 Chat</span>';
-      } else if (req.lob === 'Phone') {
-        lobBadge = '<span class="badge-lob badge-phone">📞 Phone</span>';
-      }
+    container.innerHTML = filtered.map(({ req, matchInfo }) => {
+      const { full, partial } = matchInfo;
+      const reqLob = req.lob || 'Phone';
 
-      const matchBanner = matches.length > 0
-        ? `<div class="card-match-banner">✨ <strong>Match Available:</strong> ${matches.map(m => `${esc(m.name)} (${esc(m.dates)})`).join(' • ')}</div>`
+      const lobBadge = reqLob === 'Chat'
+        ? '<span class="badge-lob badge-chat">💬 Chat</span>'
+        : '<span class="badge-lob badge-phone">📞 Phone</span>';
+
+      const fullBanner = full.length > 0
+        ? `<div class="card-match-banner">✨ <strong>Match Available:</strong> ${full.map(m => `${esc(m.name)} (${esc(m.dates)})`).join(' • ')}</div>`
         : '';
+
+      const partialBanner = partial.length > 0
+        ? `<div class="card-partial-banner">💡 <strong>Partial Match:</strong> ${partial.map(m => `${esc(m.name)} (${esc(m.dates)})`).join(' • ')}</div>`
+        : '';
+
+      const cardHighlightClass = full.length > 0 ? 'has-match' : (partial.length > 0 ? 'has-partial' : '');
 
       const daysHtml = (req.days || []).map(d => {
         const otBadge = d.ot === 'Yes' ? '<span class="badge-ot">+ OT</span>' : '';
@@ -532,13 +580,14 @@
       }).join('');
 
       return `
-        <div class="card ${matches.length > 0 ? 'has-match' : ''}">
+        <div class="card ${cardHighlightClass}">
           <div>
             <div class="card-top">
               <span class="user-name">${esc(req.name)}</span>
               ${lobBadge}
             </div>
-            ${matchBanner}
+            ${fullBanner}
+            ${partialBanner}
             ${daysHtml}
           </div>
           <div class="card-actions">
@@ -745,6 +794,12 @@
           }
           wanted = `${wantFrom} - ${wantTo}`;
         }
+
+        if (current.toLowerCase() === wanted.toLowerCase()) {
+          alert('مينفعش تختار نفس الشيفت في Current و Wanted في نفس اليوم.');
+          return null;
+        }
+
         days.push({ date, current, wanted, ot });
       }
     }
@@ -798,7 +853,7 @@
     if (!req) return;
     document.getElementById('editRequestId').value = id;
     document.getElementById('editPinInput').value = '';
-    selectEditLob(req.lob || '');
+    selectEditLob(req.lob || 'Phone');
     const wrapper = document.getElementById('editDaysWrapper');
     wrapper.innerHTML = '';
     (req.days || []).forEach(d => addDayBlock('editDaysWrapper', d, true));
