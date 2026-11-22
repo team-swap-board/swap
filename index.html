@@ -60,6 +60,15 @@
       border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05);
       display: flex; flex-direction: column; justify-content: space-between;
     }
+    .card.has-match {
+      border: 2px solid #10b981;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
+    }
+    .card-match-banner {
+      background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46;
+      border-radius: 8px; padding: 7px 10px; margin-bottom: 10px;
+      font-size: 0.8rem; line-height: 1.4;
+    }
     .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
     .user-name { font-weight: 700; font-size: 1rem; }
     .badge-lob {
@@ -176,6 +185,7 @@
     <input type="date" id="dateFilter" onchange="renderCards()">
     <select id="typeFilter" onchange="renderCards()">
       <option value="all">All Types (Hours &amp; Off)</option>
+      <option value="matched">✨ Matched Only</option>
       <option value="off">Includes Off Day</option>
       <option value="hours">Shift Hours Only</option>
     </select>
@@ -313,6 +323,47 @@
     window.open('https://wa.me/' + clean, '_blank', 'noopener');
   }
 
+  function shiftsMatch(s1, s2) {
+    const a = String(s1 || '').trim().toLowerCase();
+    const b = String(s2 || '').trim().toLowerCase();
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a === 'any shift' && b !== 'off') return true;
+    if (b === 'any shift' && a !== 'off') return true;
+    return false;
+  }
+
+  function getCardMatches(req) {
+    const matches = [];
+    for (const other of allRequests) {
+      if (other.id === req.id) continue;
+      if (req.lob && other.lob && req.lob !== other.lob) continue;
+
+      const matchedDates = [];
+      for (const myDay of (req.days || [])) {
+        for (const otherDay of (other.days || [])) {
+          if (
+            myDay.date === otherDay.date &&
+            shiftsMatch(myDay.current, otherDay.wanted) &&
+            shiftsMatch(myDay.wanted, otherDay.current)
+          ) {
+            if (!matchedDates.includes(myDay.date)) {
+              matchedDates.push(myDay.date);
+            }
+          }
+        }
+      }
+      if (matchedDates.length > 0) {
+        matches.push({
+          name: other.name,
+          phone: other.phone,
+          dates: matchedDates.join(', ')
+        });
+      }
+    }
+    return matches;
+  }
+
   function setLobFilter(lob) {
     currentLobFilter = lob;
     document.getElementById('tab-all').className = 'lob-tab' + (lob === 'all' ? ' active' : '');
@@ -374,8 +425,14 @@
     const tFilter = document.getElementById('typeFilter').value;
     const otFilter = document.getElementById('otFilter').value;
 
-    const filtered = allRequests.filter(req => {
+    const enriched = allRequests.map(req => ({
+      req,
+      matches: getCardMatches(req)
+    }));
+
+    const filtered = enriched.filter(({ req, matches }) => {
       if (currentLobFilter !== 'all' && req.lob !== currentLobFilter) return false;
+      if (tFilter === 'matched' && matches.length === 0) return false;
 
       const days = req.days || [];
       const hasOT = days.some(d => d.ot === 'Yes');
@@ -396,13 +453,17 @@
       return;
     }
 
-    container.innerHTML = filtered.map(req => {
+    container.innerHTML = filtered.map(({ req, matches }) => {
       let lobBadge = '';
       if (req.lob === 'Chat') {
         lobBadge = '<span class="badge-lob badge-chat">💬 Chat</span>';
       } else if (req.lob === 'Phone') {
         lobBadge = '<span class="badge-lob badge-phone">📞 Phone</span>';
       }
+
+      const matchBanner = matches.length > 0
+        ? `<div class="card-match-banner">✨ <strong>Match Available:</strong> ${matches.map(m => `${esc(m.name)} (${esc(m.dates)})`).join(' • ')}</div>`
+        : '';
 
       const daysHtml = (req.days || []).map(d => {
         const otBadge = d.ot === 'Yes' ? '<span class="badge-ot">+ OT</span>' : '';
@@ -419,12 +480,13 @@
       }).join('');
 
       return `
-        <div class="card">
+        <div class="card ${matches.length > 0 ? 'has-match' : ''}">
           <div>
             <div class="card-top">
               <span class="user-name">${esc(req.name)}</span>
               ${lobBadge}
             </div>
+            ${matchBanner}
             ${daysHtml}
           </div>
           <div class="card-actions">
@@ -486,7 +548,6 @@
         <select class="d-cur-to">${timeOptions(curParts[1])}</select>
       </div>
 
-      <!-- الوضع العادي (أو في حالة التعديل) -->
       <div id="normal-want-${id}" style="display:${(curIsOff && !isEditPrefill) ? 'none' : 'block'};">
         <div style="font-size:0.82rem;font-weight:700;color:#059669;margin-top:10px;">Wanted Shift</div>
         <select class="d-want-type" onchange="toggleWantedTimes(this, 'want-times-${id}')" style="width:100%;padding:7px;border-radius:6px;border:1px solid #d1d5db;margin-top:4px;">
@@ -500,7 +561,6 @@
         </div>
       </div>
 
-      <!-- وضع تبديل الأوف (لما تختار Current = Off) -->
       <div id="off-swap-wrap-${id}" class="off-exchange-box" style="display:${(curIsOff && !isEditPrefill) ? 'block' : 'none'};">
         <div style="font-size:0.82rem;font-weight:700;color:#065f46;margin-bottom:4px;">
           Wanted Off Date (التاريخ التاني اللي عاوز فيه الأوف) *
@@ -508,7 +568,7 @@
         <input type="date" class="d-want-off-date" min="${minDate}" style="width:100%;padding:8px;border:1px solid #6ee7b7;border-radius:6px;margin-bottom:8px;">
 
         <div style="font-size:0.82rem;font-weight:700;color:#4b5563;">
-          Your Current Shift on that Date (شيفتك الحالي في التاريخ التاني) *
+          Your Current Shift on that Date (شيفتك الحالي في اليوم اللي عاوز تاخده أوف) *
         </div>
         <div class="row-2" style="margin-top:4px;">
           <select class="d-want-off-cur-from">${timeOptions('11:00 AM')}</select>
