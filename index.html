@@ -394,6 +394,28 @@
     return false;
   }
 
+  function isDayCompatible(myDay, otherDay) {
+    if (myDay.date !== otherDay.date) return false;
+    const myWant = String(myDay.wanted || '').trim().toLowerCase();
+    const myCur = String(myDay.current || '').trim().toLowerCase();
+    const otherWant = String(otherDay.wanted || '').trim().toLowerCase();
+    const otherCur = String(otherDay.current || '').trim().toLowerCase();
+
+    if (shiftsMatch(myDay.wanted, otherDay.current) && shiftsMatch(myDay.current, otherDay.wanted)) {
+      return true;
+    }
+
+    if (myWant === 'any shift' && myCur !== 'off' && otherWant && otherWant !== 'off' && shiftsMatch(otherDay.wanted, myDay.current)) {
+      return true;
+    }
+
+    if (otherWant === 'any shift' && otherCur !== 'off' && myWant && myWant !== 'off' && shiftsMatch(myDay.wanted, otherDay.current)) {
+      return true;
+    }
+
+    return false;
+  }
+
   function getCardMatches(req) {
     const full = [];
     const partial = [];
@@ -414,11 +436,7 @@
       const matchedDates = [];
       for (const myDay of myValidDays) {
         for (const otherDay of otherValidDays) {
-          if (
-            myDay.date === otherDay.date &&
-            shiftsMatch(myDay.wanted, otherDay.current) &&
-            shiftsMatch(myDay.current, otherDay.wanted)
-          ) {
+          if (isDayCompatible(myDay, otherDay)) {
             if (!matchedDates.includes(myDay.date)) {
               matchedDates.push(myDay.date);
             }
