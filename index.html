@@ -64,18 +64,9 @@
       border: 2px solid #10b981;
       box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
     }
-    .card.has-partial {
-      border: 2px solid #f59e0b;
-      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.12);
-    }
     .card-match-banner {
       background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46;
-      border-radius: 8px; padding: 7px 10px; margin-bottom: 8px;
-      font-size: 0.8rem; line-height: 1.4;
-    }
-    .card-partial-banner {
-      background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
-      border-radius: 8px; padding: 7px 10px; margin-bottom: 8px;
+      border-radius: 8px; padding: 7px 10px; margin-bottom: 10px;
       font-size: 0.8rem; line-height: 1.4;
     }
     .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -205,8 +196,7 @@
     <input type="date" id="dateFilter" onchange="renderCards()">
     <select id="typeFilter" onchange="renderCards()">
       <option value="all">All Types (Hours &amp; Off)</option>
-      <option value="matched">✨ All Matches (Exact &amp; Partial)</option>
-      <option value="exact">✅ Exact Match Only</option>
+      <option value="matched">✨ Matched Only</option>
       <option value="off">Includes Off Day</option>
       <option value="hours">Shift Hours Only</option>
     </select>
@@ -389,54 +379,34 @@
   }
 
   function getCardMatches(req) {
-    const exact = [];
-    const partial = [];
-
+    const matches = [];
     for (const other of allRequests) {
       if (other.id === req.id) continue;
       if (req.lob && other.lob && req.lob !== other.lob) continue;
 
-      const exactDates = [];
-      const partialDates = [];
-
+      const matchedDates = [];
       for (const myDay of (req.days || [])) {
         for (const otherDay of (other.days || [])) {
-          if (myDay.date !== otherDay.date) continue;
-
-          const iGetWhatIWant = shiftsMatch(myDay.wanted, otherDay.current);
-          const theyGetWhatTheyWant = shiftsMatch(myDay.current, otherDay.wanted);
-
-          if (iGetWhatIWant && theyGetWhatTheyWant) {
-            if (!exactDates.includes(myDay.date)) {
-              exactDates.push(myDay.date);
-            }
-          } else if (iGetWhatIWant || theyGetWhatTheyWant) {
-            if (!exactDates.includes(myDay.date) && !partialDates.includes(myDay.date)) {
-              partialDates.push(myDay.date);
+          if (
+            myDay.date === otherDay.date &&
+            shiftsMatch(myDay.current, otherDay.wanted) &&
+            shiftsMatch(myDay.wanted, otherDay.current)
+          ) {
+            if (!matchedDates.includes(myDay.date)) {
+              matchedDates.push(myDay.date);
             }
           }
         }
       }
-
-      if (exactDates.length > 0) {
-        exact.push({
+      if (matchedDates.length > 0) {
+        matches.push({
           name: other.name,
           phone: other.phone,
-          dates: exactDates.join(', ')
-        });
-      }
-
-      const remainingPartial = partialDates.filter(d => !exactDates.includes(d));
-      if (remainingPartial.length > 0) {
-        partial.push({
-          name: other.name,
-          phone: other.phone,
-          dates: remainingPartial.join(', ')
+          dates: matchedDates.join(', ')
         });
       }
     }
-
-    return { exact, partial };
+    return matches;
   }
 
   function setLobFilter(lob) {
@@ -509,13 +479,12 @@
 
     const enriched = allRequests.map(req => ({
       req,
-      matchInfo: getCardMatches(req)
+      matches: getCardMatches(req)
     }));
 
-    const filtered = enriched.filter(({ req, matchInfo }) => {
+    const filtered = enriched.filter(({ req, matches }) => {
       if (currentLobFilter !== 'all' && req.lob !== currentLobFilter) return false;
-      if (tFilter === 'matched' && matchInfo.exact.length === 0 && matchInfo.partial.length === 0) return false;
-      if (tFilter === 'exact' && matchInfo.exact.length === 0) return false;
+      if (tFilter === 'matched' && matches.length === 0) return false;
 
       const days = req.days || [];
       const hasOT = days.some(d => d.ot === 'Yes');
@@ -536,9 +505,7 @@
       return;
     }
 
-    container.innerHTML = filtered.map(({ req, matchInfo }) => {
-      const { exact, partial } = matchInfo;
-
+    container.innerHTML = filtered.map(({ req, matches }) => {
       let lobBadge = '';
       if (req.lob === 'Chat') {
         lobBadge = '<span class="badge-lob badge-chat">💬 Chat</span>';
@@ -546,15 +513,9 @@
         lobBadge = '<span class="badge-lob badge-phone">📞 Phone</span>';
       }
 
-      const exactBanner = exact.length > 0
-        ? `<div class="card-match-banner">✨ <strong>Match Available:</strong> ${exact.map(m => `${esc(m.name)} (${esc(m.dates)})`).join(' • ')}</div>`
+      const matchBanner = matches.length > 0
+        ? `<div class="card-match-banner">✨ <strong>Match Available:</strong> ${matches.map(m => `${esc(m.name)} (${esc(m.dates)})`).join(' • ')}</div>`
         : '';
-
-      const partialBanner = partial.length > 0
-        ? `<div class="card-partial-banner">💡 <strong>Partial Match:</strong> ${partial.map(m => `${esc(m.name)} (${esc(m.dates)})`).join(' • ')}</div>`
-        : '';
-
-      const cardHighlightClass = exact.length > 0 ? 'has-match' : (partial.length > 0 ? 'has-partial' : '');
 
       const daysHtml = (req.days || []).map(d => {
         const otBadge = d.ot === 'Yes' ? '<span class="badge-ot">+ OT</span>' : '';
@@ -571,14 +532,13 @@
       }).join('');
 
       return `
-        <div class="card ${cardHighlightClass}">
+        <div class="card ${matches.length > 0 ? 'has-match' : ''}">
           <div>
             <div class="card-top">
               <span class="user-name">${esc(req.name)}</span>
               ${lobBadge}
             </div>
-            ${exactBanner}
-            ${partialBanner}
+            ${matchBanner}
             ${daysHtml}
           </div>
           <div class="card-actions">
