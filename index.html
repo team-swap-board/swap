@@ -132,6 +132,10 @@
       border: 1px solid #ddd6fe; background: #faf5ff; padding: 12px;
       border-radius: 10px; margin-bottom: 10px; position: relative;
     }
+    .off-exchange-box {
+      background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px;
+      padding: 10px; margin-top: 10px;
+    }
     .remove-day {
       position: absolute; top: 8px; right: 8px; background: #ef4444; color: #fff;
       border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-weight: bold;
@@ -439,6 +443,7 @@
     const minDate = getTodayLocal();
     const wrapper = document.getElementById(wrapperId);
     const isFirst = wrapper.children.length === 0;
+    const isEditPrefill = prefill !== null;
 
     const dateVal = prefill ? prefill.date : '';
     const curIsOff = prefill && prefill.current === 'Off';
@@ -446,25 +451,28 @@
     const otVal = prefill ? (prefill.ot || 'No') : 'No';
 
     const wantIsOff = prefill && prefill.wanted === 'Off';
-    const wantParts = (!wantIsOff && prefill && prefill.wanted.includes(' - ')) ? prefill.wanted.split(' - ') : ['09:00 AM', '05:00 PM'];
+    const wantIsAny = prefill && prefill.wanted === 'Any Shift';
+    const wantParts = (!wantIsOff && !wantIsAny && prefill && prefill.wanted.includes(' - ')) ? prefill.wanted.split(' - ') : ['09:00 AM', '05:00 PM'];
 
     const showRemove = !isFirst || allowRemoveFirst;
 
     const div = document.createElement('div');
     div.className = 'day-builder';
     div.id = `day-block-${id}`;
+    div.dataset.editPrefill = isEditPrefill ? '1' : '0';
+
     div.innerHTML = `
       ${showRemove ? `<button type="button" class="remove-day" onclick="document.getElementById('day-block-${id}').remove()">x</button>` : ''}
       <div class="field" style="margin-bottom:8px;">
-        <label>Date *</label>
+        <label id="date-lbl-${id}">${curIsOff && !isEditPrefill ? 'Your Current Off Date (تاريخ أوفك الحالي) *' : 'Date *'}</label>
         <input type="date" class="d-date" min="${minDate}" value="${esc(dateVal)}" required>
       </div>
 
       <div style="font-size:0.82rem;font-weight:700;color:#4b5563;">Current Shift</div>
       <div class="row-2" style="margin-top:4px;">
-        <select class="d-cur-type" onchange="toggleShiftOpts(this, 'cur-times-${id}', 'ot-wrap-${id}')" style="padding:7px;border-radius:6px;border:1px solid #d1d5db;">
+        <select class="d-cur-type" onchange="toggleShiftOpts(this, ${id})" style="padding:7px;border-radius:6px;border:1px solid #d1d5db;">
           <option value="hours" ${!curIsOff ? 'selected' : ''}>Shift Hours</option>
-          <option value="Off" ${curIsOff ? 'selected' : ''}>Off</option>
+          <option value="Off" ${curIsOff ? 'selected' : ''}>Off (أوف)</option>
         </select>
         <div id="ot-wrap-${id}" style="display:${curIsOff ? 'none' : 'block'};">
           <select class="d-ot" style="width:100%;padding:7px;border-radius:6px;border:1px solid #d1d5db;">
@@ -478,43 +486,130 @@
         <select class="d-cur-to">${timeOptions(curParts[1])}</select>
       </div>
 
-      <div style="font-size:0.82rem;font-weight:700;color:#059669;margin-top:10px;">Wanted Shift</div>
-      <select class="d-want-type" onchange="toggleWantedTimes(this, 'want-times-${id}')" style="width:100%;padding:7px;border-radius:6px;border:1px solid #d1d5db;margin-top:4px;">
-        <option value="hours" ${!wantIsOff ? 'selected' : ''}>Shift Hours</option>
-        <option value="Off" ${wantIsOff ? 'selected' : ''}>Off</option>
-      </select>
-      <div id="want-times-${id}" class="row-2" style="display:${wantIsOff ? 'none' : 'grid'};">
-        <select class="d-want-from">${timeOptions(wantParts[0])}</select>
-        <select class="d-want-to">${timeOptions(wantParts[1])}</select>
+      <!-- الوضع العادي (أو في حالة التعديل) -->
+      <div id="normal-want-${id}" style="display:${(curIsOff && !isEditPrefill) ? 'none' : 'block'};">
+        <div style="font-size:0.82rem;font-weight:700;color:#059669;margin-top:10px;">Wanted Shift</div>
+        <select class="d-want-type" onchange="toggleWantedTimes(this, 'want-times-${id}')" style="width:100%;padding:7px;border-radius:6px;border:1px solid #d1d5db;margin-top:4px;">
+          <option value="hours" ${(!wantIsOff && !wantIsAny) ? 'selected' : ''}>Shift Hours</option>
+          <option value="Off" ${wantIsOff ? 'selected' : ''}>Off</option>
+          <option value="Any Shift" ${wantIsAny ? 'selected' : ''}>Any Shift (أي شيفت)</option>
+        </select>
+        <div id="want-times-${id}" class="row-2" style="display:${(wantIsOff || wantIsAny) ? 'none' : 'grid'};">
+          <select class="d-want-from">${timeOptions(wantParts[0])}</select>
+          <select class="d-want-to">${timeOptions(wantParts[1])}</select>
+        </div>
+      </div>
+
+      <!-- وضع تبديل الأوف (لما تختار Current = Off) -->
+      <div id="off-swap-wrap-${id}" class="off-exchange-box" style="display:${(curIsOff && !isEditPrefill) ? 'block' : 'none'};">
+        <div style="font-size:0.82rem;font-weight:700;color:#065f46;margin-bottom:4px;">
+          Wanted Off Date (التاريخ التاني اللي عاوز فيه الأوف) *
+        </div>
+        <input type="date" class="d-want-off-date" min="${minDate}" style="width:100%;padding:8px;border:1px solid #6ee7b7;border-radius:6px;margin-bottom:8px;">
+
+        <div style="font-size:0.82rem;font-weight:700;color:#4b5563;">
+          Your Current Shift on that Date (شيفتك الحالي في التاريخ التاني) *
+        </div>
+        <div class="row-2" style="margin-top:4px;">
+          <select class="d-want-off-cur-from">${timeOptions('11:00 AM')}</select>
+          <select class="d-want-off-cur-to">${timeOptions('07:00 PM')}</select>
+        </div>
+        <select class="d-want-off-ot" style="width:100%;padding:7px;border-radius:6px;border:1px solid #d1d5db;margin-top:6px;">
+          <option value="No">Overtime on that day: No</option>
+          <option value="Yes">Overtime on that day: Yes</option>
+        </select>
+
+        <div style="font-size:0.82rem;font-weight:700;color:#059669;margin-top:8px;">
+          Shift you can work on your Off day (الشيفت اللي تقدر تنزله يوم أوفك)
+        </div>
+        <select class="d-off-work-type" onchange="toggleOffWorkTimes(this, 'off-work-times-${id}')" style="width:100%;padding:7px;border-radius:6px;border:1px solid #d1d5db;margin-top:4px;">
+          <option value="Any Shift" selected>Any Shift (أي شيفت)</option>
+          <option value="hours">Specific Hours (ساعات محددة)</option>
+        </select>
+        <div id="off-work-times-${id}" class="row-2" style="display:none;">
+          <select class="d-off-work-from">${timeOptions('09:00 AM')}</select>
+          <select class="d-off-work-to">${timeOptions('05:00 PM')}</select>
+        </div>
       </div>
     `;
     wrapper.appendChild(div);
   }
 
-  function toggleShiftOpts(sel, timesId, otWrapId) {
+  function toggleShiftOpts(sel, id) {
+    const block = document.getElementById(`day-block-${id}`);
+    const isEditPrefill = block && block.dataset.editPrefill === '1';
     const isOff = sel.value === 'Off';
-    document.getElementById(timesId).style.display = isOff ? 'none' : 'grid';
-    document.getElementById(otWrapId).style.display = isOff ? 'none' : 'block';
+
+    document.getElementById(`cur-times-${id}`).style.display = isOff ? 'none' : 'grid';
+    document.getElementById(`ot-wrap-${id}`).style.display = isOff ? 'none' : 'block';
+
+    if (!isEditPrefill) {
+      document.getElementById(`normal-want-${id}`).style.display = isOff ? 'none' : 'block';
+      document.getElementById(`off-swap-wrap-${id}`).style.display = isOff ? 'block' : 'none';
+      document.getElementById(`date-lbl-${id}`).textContent = isOff
+        ? 'Your Current Off Date (تاريخ أوفك الحالي) *'
+        : 'Date *';
+    }
   }
 
   function toggleWantedTimes(sel, targetId) {
-    document.getElementById(targetId).style.display = sel.value === 'Off' ? 'none' : 'grid';
+    document.getElementById(targetId).style.display = sel.value === 'hours' ? 'grid' : 'none';
+  }
+
+  function toggleOffWorkTimes(sel, targetId) {
+    document.getElementById(targetId).style.display = sel.value === 'hours' ? 'grid' : 'none';
   }
 
   function extractDaysFromWrapper(wrapperId) {
     const minDate = getTodayLocal();
     const blocks = document.querySelectorAll(`#${wrapperId} .day-builder`);
     const days = [];
+
     for (let b of blocks) {
+      const isEditPrefill = b.dataset.editPrefill === '1';
       const date = b.querySelector('.d-date').value;
       if (!date) { alert('Please select a date for each day.'); return null; }
       if (date < minDate) { alert('لا يمكن اختيار تاريخ قديم. اختر تاريخ اليوم أو ما بعده.'); return null; }
+
       const curType = b.querySelector('.d-cur-type').value;
-      const current = curType === 'Off' ? 'Off' : `${b.querySelector('.d-cur-from').value} - ${b.querySelector('.d-cur-to').value}`;
-      const ot = curType === 'Off' ? 'No' : b.querySelector('.d-ot').value;
-      const wantType = b.querySelector('.d-want-type').value;
-      const wanted = wantType === 'Off' ? 'Off' : `${b.querySelector('.d-want-from').value} - ${b.querySelector('.d-want-to').value}`;
-      days.push({ date, current, wanted, ot });
+
+      if (!isEditPrefill && curType === 'Off') {
+        const wantOffDate = b.querySelector('.d-want-off-date').value;
+        if (!wantOffDate) {
+          alert('من فضلك اختر التاريخ التاني اللي عاوز تاخد فيه الأوف.');
+          return null;
+        }
+        if (wantOffDate < minDate) {
+          alert('لا يمكن اختيار تاريخ قديم للأوف المطلوب.');
+          return null;
+        }
+        if (wantOffDate === date) {
+          alert('لازم تختار تاريخ تاني مختلف لليوم الأوف المطلوب.');
+          return null;
+        }
+
+        const offWorkType = b.querySelector('.d-off-work-type').value;
+        const wantedOnOffDay = offWorkType === 'Any Shift'
+          ? 'Any Shift'
+          : `${b.querySelector('.d-off-work-from').value} - ${b.querySelector('.d-off-work-to').value}`;
+
+        const curOnWantOff = `${b.querySelector('.d-want-off-cur-from').value} - ${b.querySelector('.d-want-off-cur-to').value}`;
+        const otOnWantOff = b.querySelector('.d-want-off-ot').value;
+
+        days.push({ date: date, current: 'Off', wanted: wantedOnOffDay, ot: 'No' });
+        days.push({ date: wantOffDate, current: curOnWantOff, wanted: 'Off', ot: otOnWantOff });
+      } else {
+        const current = curType === 'Off'
+          ? 'Off'
+          : `${b.querySelector('.d-cur-from').value} - ${b.querySelector('.d-cur-to').value}`;
+        const ot = curType === 'Off' ? 'No' : b.querySelector('.d-ot').value;
+        const wantType = b.querySelector('.d-want-type').value;
+        let wanted = wantType;
+        if (wantType === 'hours') {
+          wanted = `${b.querySelector('.d-want-from').value} - ${b.querySelector('.d-want-to').value}`;
+        }
+        days.push({ date, current, wanted, ot });
+      }
     }
     return days;
   }
